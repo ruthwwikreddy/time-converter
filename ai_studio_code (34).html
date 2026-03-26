@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Engine | Ruthwik Reddy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --glass: rgba(255, 255, 255, 0.04); --border: rgba(255, 255, 255, 0.1); }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            min-height: 100vh; 
+            color: white; 
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .glass { background: var(--glass); backdrop-filter: blur(25px); border: 1px solid var(--border); border-radius: 32px; }
+        .inner-input { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.2s; }
+        .inner-input:focus { border-color: #fff; outline: none; background: rgba(0, 0, 0, 0.6); }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+        #city-list::-webkit-scrollbar { width: 4px; }
+        #city-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="glass w-full max-w-md p-8 shadow-2xl">
+        <!-- Brand Header -->
+        <div class="text-center mb-10">
+            <h1 class="text-2xl font-black uppercase tracking-tighter">Time Engine</h1>
+            <p class="text-[9px] font-black tracking-[0.4em] text-gray-500 uppercase mt-1">Ruthwik Reddy</p>
+        </div>
+
+        <!-- Master Base Input -->
+        <div class="mb-10">
+            <div class="flex justify-between items-center mb-4 px-1">
+                <span id="base-label" class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Base Time (UTC +5:30)</span>
+                <button id="sync-btn" class="text-[9px] font-black px-3 py-1 bg-white text-black rounded hover:invert transition uppercase">Auto Sync</button>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <input id="h-in" type="number" value="10" class="inner-input w-20 h-16 text-center text-3xl font-black rounded-2xl">
+                    <span class="text-2xl font-black text-gray-700">:</span>
+                    <input id="m-in" type="number" value="30" class="inner-input w-20 h-16 text-center text-3xl font-black rounded-2xl">
+                </div>
+                <div class="flex-1 text-right">
+                    <p id="ist-date" class="text-[10px] font-black text-gray-500 uppercase leading-tight"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- City List -->
+        <div id="city-list" class="space-y-4 mb-8 max-h-[300px] overflow-y-auto pr-1">
+            <!-- Cards injected here -->
+        </div>
+
+        <!-- Monochrome Search -->
+        <div class="relative mb-8">
+            <input id="city-search" type="text" placeholder="ADD LOCATION..." 
+                   class="w-full py-5 px-6 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black tracking-widest uppercase focus:outline-none focus:border-white/40 transition">
+            <div id="search-results" class="absolute bottom-full left-0 right-0 max-h-40 overflow-y-auto bg-black border border-white/10 rounded-2xl mb-2 hidden z-50">
+                <!-- Search results -->
+            </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="grid grid-cols-2 gap-4 mb-10">
+            <button onclick="alert('Sync Link Copied')" class="border border-white/10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition">Share Link</button>
+            
+            <!-- NEW: Offset Control instead of Schedule -->
+            <div class="relative group">
+                <input id="base-offset-input" type="text" value="+5:30" 
+                       class="w-full py-4 bg-white text-black rounded-2xl text-center text-[10px] font-black uppercase tracking-widest focus:outline-none hover:bg-gray-200 transition cursor-pointer">
+                <span class="absolute -top-6 left-0 right-0 text-[8px] text-center font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition uppercase">Edit Base Offset</span>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center pt-8 border-t border-white/5">
+            <span class="text-[9px] font-black uppercase tracking-widest text-gray-600">24-hour format</span>
+            <button id="format-toggle" class="w-11 h-5 bg-white rounded-full flex items-center px-1">
+                <div id="toggle-circle" class="w-3.5 h-3.5 bg-black rounded-full transition-all translate-x-5"></div>
+            </button>
+        </div>
+        
+        <p class="text-center text-[8px] font-black text-gray-800 mt-10 tracking-[0.6em] uppercase">Developed by Ruthwik Reddy</p>
+    </div>
+
+    <script>
+        // Database of common zones
+        const CITIES_DB = [
+            { n: "London", c: "UK", tz: 0 },
+            { n: "New York", c: "USA", tz: -5 },
+            { n: "San Francisco", c: "USA", tz: -8 },
+            { n: "Tokyo", c: "Japan", tz: 9 },
+            { n: "Singapore", c: "Singapore", tz: 8 },
+            { n: "Dubai", c: "UAE", tz: 4 },
+            { n: "Sydney", c: "Australia", tz: 11 },
+            { n: "Paris", c: "France", tz: 1 }
+        ];
+
+        let state = JSON.parse(localStorage.getItem('ruthwik_v3')) || [
+            { n: "London", c: "UK", tz: 0 },
+            { n: "Tokyo", c: "Japan", tz: 9 }
+        ];
+
+        let is24h = true;
+        let baseOffset = 5.5; // IST Default
+
+        const hIn = document.getElementById('h-in');
+        const mIn = document.getElementById('m-in');
+        const cityList = document.getElementById('city-list');
+        const searchInput = document.getElementById('city-search');
+        const searchResults = document.getElementById('search-results');
+        const baseOffsetInput = document.getElementById('base-offset-input');
+        const baseLabel = document.getElementById('base-label');
+
+        // Parse offset string (+5:30 -> 5.5)
+        function parseOffset(str) {
+            try {
+                const clean = str.replace(/[^\d:+-]/g, '');
+                const sign = clean.startsWith('-') ? -1 : 1;
+                const parts = clean.replace(/[+-]/, '').split(':');
+                const h = parseInt(parts[0]) || 0;
+                const m = parseInt(parts[1]) || 0;
+                return sign * (h + (m / 60));
+            } catch(e) { return 0; }
+        }
+
+        function render() {
+            const h = parseInt(hIn.value) || 0;
+            const m = parseInt(mIn.value) || 0;
+            
+            baseOffset = parseOffset(baseOffsetInput.value);
+            baseLabel.innerText = `Base Time (UTC ${baseOffsetInput.value})`;
+
+            cityList.innerHTML = '';
+            state.forEach((city, idx) => {
+                // Calculation relative to base offset
+                let totalBaseMinutes = (h * 60) + m;
+                let diffMinutes = (city.tz - baseOffset) * 60;
+                let targetTotalMinutes = totalBaseMinutes + diffMinutes;
+
+                let dayShift = Math.floor(targetTotalMinutes / 1440);
+                let finalMinutes = ((targetTotalMinutes % 1440) + 1440) % 1440;
+                
+                let targetH = Math.floor(finalMinutes / 60);
+                let targetM = Math.floor(finalMinutes % 60);
+
+                const isWorking = targetH >= 9 && targetH < 18;
+                
+                let date = new Date();
+                date.setDate(date.getDate() + dayShift);
+                const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+                let displayH = targetH;
+                let ampm = "";
+                if (!is24h) {
+                    ampm = displayH >= 12 ? " PM" : " AM";
+                    displayH = displayH % 12 || 12;
+                }
+
+                const card = document.createElement('div');
+                card.className = "bg-white/[0.04] border border-white/10 rounded-3xl p-6 relative group hover:bg-white/[0.08] transition";
+                card.innerHTML = `
+                    <button onclick="removeCity(${idx})" class="absolute top-6 right-6 text-gray-600 hover:text-white opacity-0 group-hover:opacity-100 transition">×</button>
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="font-black text-xs uppercase tracking-tight">${city.n}</h3>
+                            <p class="text-[8px] font-bold text-gray-500 uppercase tracking-widest">${city.c}</p>
+                        </div>
+                        <span class="text-[8px] font-black px-2.5 py-1 rounded-md tracking-tighter ${isWorking ? 'bg-white text-black' : 'border border-white/20 text-gray-600'}">
+                            ${isWorking ? 'WORKING' : 'OFF'}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <div class="text-3xl font-black tracking-tighter">
+                            ${String(displayH).padStart(2, '0')}:${String(targetM).padStart(2, '0')}<span class="text-[10px] ml-1 uppercase">${ampm}</span>
+                        </div>
+                        <div class="text-[9px] font-black text-gray-600 uppercase text-right leading-none">
+                            ${dateStr}
+                        </div>
+                    </div>
+                `;
+                cityList.appendChild(card);
+            });
+
+            const istDateObj = new Date();
+            document.getElementById('ist-date').innerText = istDateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            localStorage.setItem('ruthwik_v3', JSON.stringify(state));
+        }
+
+        function removeCity(idx) { state.splice(idx, 1); render(); }
+
+        searchInput.oninput = () => {
+            const val = searchInput.value.toLowerCase();
+            searchResults.innerHTML = '';
+            if(!val) { searchResults.classList.add('hidden'); return; }
+            const filtered = CITIES_DB.filter(c => c.n.toLowerCase().includes(val));
+            if(filtered.length) {
+                searchResults.classList.remove('hidden');
+                filtered.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = "px-6 py-4 hover:bg-white/10 cursor-pointer text-[10px] font-black border-b border-white/5 uppercase";
+                    div.innerText = `${c.n}, ${c.c}`;
+                    div.onclick = () => { state.push(c); searchInput.value = ''; searchResults.classList.add('hidden'); render(); };
+                    searchResults.appendChild(div);
+                });
+            } else searchResults.classList.add('hidden');
+        };
+
+        // Auto-detect system time and offset
+        document.getElementById('sync-btn').onclick = () => {
+            const now = new Date();
+            hIn.value = String(now.getHours()).padStart(2, '0');
+            mIn.value = String(now.getMinutes()).padStart(2, '0');
+            
+            // Calculate system offset string (+5:30, etc)
+            const offsetMin = -now.getTimezoneOffset();
+            const sign = offsetMin >= 0 ? '+' : '-';
+            const h = Math.floor(Math.abs(offsetMin) / 60);
+            const m = Math.abs(offsetMin) % 60;
+            baseOffsetInput.value = `${sign}${h}:${String(m).padStart(2, '0')}`;
+            
+            render();
+        };
+
+        document.getElementById('format-toggle').onclick = () => {
+            is24h = !is24h;
+            document.getElementById('toggle-circle').style.transform = is24h ? "translateX(20px)" : "translateX(0px)";
+            render();
+        };
+
+        hIn.oninput = render; 
+        mIn.oninput = render;
+        baseOffsetInput.oninput = render;
+
+        // Start with IST default sync
+        document.getElementById('sync-btn').click();
+    </script>
+</body>
+</html>
